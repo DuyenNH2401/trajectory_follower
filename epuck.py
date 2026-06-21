@@ -1,6 +1,7 @@
-import config
 import numpy as np
 from controller import Supervisor
+
+import config
 
 
 class EPuckController:
@@ -24,6 +25,9 @@ class EPuckController:
 
         # Mapping
         self.map = np.zeros((config.MAP_RESOLUTION, config.MAP_RESOLUTION))
+
+        #Waypoints
+        self.waypoints = config.WP
 
         # Initialize devices
         self._init_devices()
@@ -205,3 +209,9 @@ class EPuckController:
         map_point = self.world2map(world_point[0], world_point[1])
         np.add.at(self.map, (map_point[0], map_point[1]), 0.01)
         self.map = np.clip(self.map, 0.0, 1.0)
+
+    def _place_marker(self, index):
+        self.marker.setSFVec3f([*self.waypoints[index], 0.0])
+
+    def _computing_error(self, index):
+        pass
