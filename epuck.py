@@ -26,7 +26,7 @@ class EPuckController:
         # Mapping
         self.map = np.zeros((config.MAP_RESOLUTION, config.MAP_RESOLUTION))
 
-        #Waypoints
+        # Waypoints
         self.waypoints = config.WP
 
         # Initialize devices
@@ -65,7 +65,41 @@ class EPuckController:
         # Marker
         self.marker = self.robot.getFromDef("marker").getField("translation")
 
-    def line_following(self, L, C, R):
+    def follow_line(self):
+        """This function should implement the main control loop for line following. It should read the ground sensors, calculate the motor speeds using the line_following function, and set the motor speeds accordingly. It should also update the odometry state for use in mapping and error calculation."""
+        # Read ground sensors
+        L = self.gs[0].getValue() < config.THRESHOLD
+        C = self.gs[1].getValue() < config.THRESHOLD
+        R = self.gs[2].getValue() < config.THRESHOLD
+
+        # Calculate wheel velocities
+        phil, phir = self._line_following(L, C, R)
+
+        # Set velocities
+        self.left_motor.setVelocity(phil)
+        self.right_motor.setVelocity(phir)
+
+        # Update velocities for odometry calculation in the next step
+        self.actual_phil = phil
+        self.actual_phir = phir
+
+        if self.is_finished:
+            self.left_motor.setVelocity(0.0)
+            self.right_motor.setVelocity(0.0)
+            error = np.sqrt(self.xw**2 + self.yw**2)
+            print(f"Final Error (Distance to 0,0): {error:.4f} meters")
+
+    def _line_following(self, L: bool, C: bool, R: bool) -> (float, float):
+        """This function should implement the line following logic based on the readings of the ground sensors (L, C, R).
+
+        rgs:
+            L: Left ground sensor reading (True if on line, False if on ground)
+            C: Center ground sensor reading (True if on line, False if on ground)
+            R: Right ground sensor reading (True if on line, False if on ground)
+
+        Returns:
+            phil, phir: Left and right motor speeds
+        """
         phil, phir = config.BASE_SPEED, config.BASE_SPEED
 
         if L and C and R:
@@ -113,36 +147,19 @@ class EPuckController:
         return phil, phir
 
     def step_simulation(self) -> bool:
+        """
+        Returns:
+            bool: True if the simulation should continue, False if it should stop
+        """
         if self.robot.step(self.timestep) == -1:
             return False
 
         self.step_count += 1
         return not self.is_finished
 
-    def follow_line(self):
-        # Read ground sensors
-        L = self.gs[0].getValue() < config.THRESHOLD
-        C = self.gs[1].getValue() < config.THRESHOLD
-        R = self.gs[2].getValue() < config.THRESHOLD
-
-        # Calculate wheel velocities
-        phil, phir = self.line_following(L, C, R)
-
-        # Set velocities
-        self.left_motor.setVelocity(phil)
-        self.right_motor.setVelocity(phir)
-
-        # Update velocities for odometry calculation in the next step
-        self.actual_phil = phil
-        self.actual_phir = phir
-
-        if self.is_finished:
-            self.left_motor.setVelocity(0.0)
-            self.right_motor.setVelocity(0.0)
-            error = np.sqrt(self.xw**2 + self.yw**2)
-            print(f"Final Error (Distance to 0,0): {error:.4f} meters")
-
     def update_odometry(self):
+        """This function should update the robot's odometry state (xw, yw, omegaz) based on the actual wheel velocities (actual_phil, actual_phir) and the time step. This will be used for mapping and error calculation."""
+
         # delta_t = self.timestep / 1000.0
         # delta_x = (
         #     config.WHEEL_RADIUS * (self.actual_phil + self.actual_phir) / 2.0 * delta_t
@@ -164,7 +181,14 @@ class EPuckController:
             self.compass.getValues()[0], self.compass.getValues()[1]
         )
 
-    def lidar2world_coordinate(self):
+    def lidar2world_coordinate(self) -> (np.ndarray, np.ndarray):
+        """This function should convert the LIDAR readings from the robot's local coordinate frame to the world coordinate frame using the current odometry state (xw, yw, omegaz). It should return the LIDAR points in both the robot's local frame and the world frame for use in mapping and error calculation.
+
+        Returns:
+            X_r: LIDAR points in the robot's local coordinate frame (shape: 3 x N)
+            D: LIDAR points in the world coordinate frame (shape: 3 x N)
+        """
+
         ranges = np.array(self.lidar.getRangeImage())
 
         ranges[ranges == np.inf] = 100
@@ -188,7 +212,18 @@ class EPuckController:
 
         return X_r, D
 
-    def world2map(self, xw, yw):
+    def world2map(self, xw: np.ndarray, yw: np.ndarray) -> (np.ndarray, np.ndarray):
+        """
+        This function should convert world coordinates (xw, yw) to map pixel coordinates (x_pixel, y_pixel) based on the defined map resolution and the world coordinate limits. This will be used for mapping the LIDAR points onto the occupancy grid.
+
+        Args:
+            xw (np.ndarray): World x coordinates
+            yw (np.ndarray): World y coordinates
+        Returns:
+            x_pixel (np.ndarray): Map pixel x coordinates
+            y_pixel (np.ndarray): Map pixel y coordinates
+        """
+
         X_max, X_min = 0.305 + 0.5, 0.305 - 0.5
         Y_max, Y_min = 0.25 + 0.5, 0.25 - 0.5
 
@@ -205,7 +240,13 @@ class EPuckController:
 
         return x_pixel, y_pixel
 
-    def probabilistic_mapping(self, world_point):
+    def probabilistic_mapping(self, world_point: np.ndarray) -> None:
+        """
+        This function should update the occupancy grid map based on the LIDAR points in the world coordinate frame. It should use a probabilistic approach to increase the probability of occupancy for cells corresponding to detected obstacles and decrease the probability for cells corresponding to free space. The map should be updated incrementally as new LIDAR data is received.
+
+        Args:
+            world_point (np.ndarray): LIDAR points in the world coordinate frame (shape: 3 x N)
+        """
         map_point = self.world2map(world_point[0], world_point[1])
         np.add.at(self.map, (map_point[0], map_point[1]), 0.01)
         self.map = np.clip(self.map, 0.0, 1.0)

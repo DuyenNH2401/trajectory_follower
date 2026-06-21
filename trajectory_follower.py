@@ -4,15 +4,11 @@ from epuck import EPuckController
 
 def main() -> None:
     epuck = EPuckController()
-    epuck.display.setColor(0xFF0000)
-    i = 0
+
     while epuck.step_simulation():
         epuck.follow_line()
         epuck.update_odometry()
         
-        epuck._place_marker(i)
-        i+= 1
-
         robot_point, world_point = epuck.lidar2world_coordinate()
         epuck.probabilistic_mapping(world_point)
 
