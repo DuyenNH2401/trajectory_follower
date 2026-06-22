@@ -255,4 +255,8 @@ class EPuckController:
         self.marker.setSFVec3f([*self.waypoints[index], 0.0])
 
     def _computing_error(self, index):
-        pass
+        self._place_marker(index)
+        rho = np.sqrt((self.xw - self.waypoints[index][0]) ** 2 + (self.yw - self.waypoints[index][1]) ** 2)
+        print(f"Error to waypoint {index}: {rho}")
+
+        
