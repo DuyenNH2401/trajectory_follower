@@ -8,12 +8,24 @@ THRESHOLD = 350  # Light threshold for ground sensors (black line vs white groun
 # Odometry Settings
 INITIAL_X = 0.0
 INITIAL_Y = 0.028
-INITIAL_OMEGA = 1.5708  # 90 degrees in radians
+INITIAL_THETA = 1.5708  # 90 degrees in radians
 
 WHEEL_RADIUS = 0.0201  # r (meters)
 WHEEL_AXLE_LENGTH = 0.053  # d (meters)
 
 # Map Settings
 MAP_RESOLUTION = 300
-WP = [(0, 0.25), (0, 0.68), (0.25, 0.68), (0.43, 0.68), (0.66, 0.52), 
-    (0.35, 0.25), (0.63, 0.01), (0.13, -0.16), (0.3, -0.16), (0, -0.16), (0, 0)]
+WP = [
+    (0, 0.25),
+    (0, 0.68),
+    (0.25, 0.68),
+    (0.43, 0.68),
+    (0.66, 0.52),
+    (0.35, 0.25),
+    (0.63, 0.01),
+    (0.63, -0.16),
+    (0.13, -0.16),
+    (0, -0.16),
+    (0, 0),
+    (0, 0.25)
+]

@@ -1,21 +1,27 @@
 # from scipy import signal
 from epuck import EPuckController
-import os 
+import numpy as np
 
 def main() -> None:
     epuck = EPuckController()
-
     index = 0
 
     while epuck.step_simulation():
         epuck.follow_line()
         epuck.update_odometry()
-        
+
         robot_point, world_point = epuck.lidar2world_coordinate()
         epuck.probabilistic_mapping(world_point)
-        
-        error = epuck._computing_error(index)
-        print(f"Error to waypoint {index}: {error}")
+
+        rho, alpha = epuck.computing_error(index)
+
+        print(f"rho={rho:.4f}, alpha={np.degrees(alpha):.4f}")
+
+        if rho < 0.1:
+            index += 1
+            if index >= len(epuck.waypoints):
+                print("Trajectory completed!")
+                epuck.is_finished = True
 
         px, py = epuck.world2map(world_point[0], world_point[1])
 
@@ -42,5 +48,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    os.system('cls' if os.name == 'nt' else 'clear')
 
+    import os
+
+    os.system("cls" if os.name == "nt" else "clear")

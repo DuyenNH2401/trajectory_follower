@@ -19,7 +19,7 @@ class EPuckController:
         # Odometry state
         self.xw = config.INITIAL_X
         self.yw = config.INITIAL_Y
-        self.omegaz = config.INITIAL_OMEGA
+        self.theta = config.INITIAL_THETA
         self.actual_phil = 0.0
         self.actual_phir = 0.0
 
@@ -171,13 +171,13 @@ class EPuckController:
         #     * delta_t
         # )
 
-        # self.xw += delta_x * np.cos(self.omegaz)
-        # self.yw += delta_x * np.sin(self.omegaz)
-        # self.omegaz += delta_omega
+        # self.xw += delta_x * np.cos(self.theta)
+        # self.yw += delta_x * np.sin(self.theta)
+        # self.theta += delta_omega
 
         self.xw = self.gps.getValues()[0]
         self.yw = self.gps.getValues()[1]
-        self.omegaz = np.arctan2(
+        self.theta = np.arctan2(
             self.compass.getValues()[0], self.compass.getValues()[1]
         )
 
@@ -198,8 +198,8 @@ class EPuckController:
 
         w_T_r = np.array(
             [
-                [np.cos(self.omegaz), -np.sin(self.omegaz), self.xw],
-                [np.sin(self.omegaz), np.cos(self.omegaz), self.yw],
+                [np.cos(self.theta), -np.sin(self.theta), self.xw],
+                [np.sin(self.theta), np.cos(self.theta), self.yw],
                 [0, 0, 1],
             ]
         )
@@ -251,12 +251,30 @@ class EPuckController:
         np.add.at(self.map, (map_point[0], map_point[1]), 0.01)
         self.map = np.clip(self.map, 0.0, 1.0)
 
+    def computing_error(self, index: int) -> (float, float):
+        """This function should compute the error between the robot's current position (xw, yw) and the target waypoint specified by the index. The error can be calculated as the Euclidean distance between the robot's position and the waypoint. This error will be used to determine how well the robot is following the desired trajectory.
+
+        Args:
+            index (int): The index of the target waypoint
+
+        Returns:
+            tuple[float, float]: The error in terms of distance and angle
+        """
+        self._place_marker(index)
+
+        rho = np.sqrt(
+            (self.xw - self.waypoints[index][0]) ** 2
+            + (self.yw - self.waypoints[index][1]) ** 2
+        )
+
+        alpha = (
+            np.arctan2(
+                self.waypoints[index][1] - self.yw, self.waypoints[index][0] - self.xw
+            )
+            - self.theta
+        )
+
+        return rho, alpha
+
     def _place_marker(self, index):
         self.marker.setSFVec3f([*self.waypoints[index], 0.0])
-
-    def _computing_error(self, index):
-        self._place_marker(index)
-        rho = np.sqrt((self.xw - self.waypoints[index][0]) ** 2 + (self.yw - self.waypoints[index][1]) ** 2)
-        print(f"Error to waypoint {index}: {rho}")
-
-        
