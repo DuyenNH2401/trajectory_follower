@@ -10,8 +10,8 @@ INITIAL_X = 0.0
 INITIAL_Y = 0.028
 INITIAL_THETA = 1.5708  # 90 degrees in radians
 
-WHEEL_RADIUS = 0.0201  # r (meters)
-WHEEL_AXLE_LENGTH = 0.053  # d (meters)
+# WHEEL_RADIUS = 0.0201  # r (meters)
+# WHEEL_AXLE_LENGTH = 0.053  # d (meters)
 
 # Map Settings
 MAP_RESOLUTION = 300
@@ -27,5 +27,8 @@ WP = [
     (0.13, -0.16),
     (0, -0.16),
     (0, 0),
-    (0, 0.25)
+    (0, 0.25),
 ]
+
+P1 = 1
+P2 = 6.28
