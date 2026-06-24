@@ -190,14 +190,15 @@ class EPuckController:
         self._place_marker(index)
         rho, alpha = self._computing_error(index)
 
-        if rho < 0.1:
-            index += 1
-            if index >= len(self.waypoints):
-                print("Trajectory completed!")
-                self.is_finished = True
+        if alpha > np.pi:
+            alpha -= 2 * np.pi
+
+        print(f"rho = {rho:.4f}, alpha = {alpha / np.pi * 180:.4f}")
 
         phil = -alpha * config.P1 + rho * config.P2
         phir = alpha * config.P1 + rho * config.P2
+
+        self.set_motor_speeds(phil, phir)
 
         return rho
 

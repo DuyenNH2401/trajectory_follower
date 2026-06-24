@@ -12,18 +12,22 @@ def main() -> None:
         # epuck.follow_line()
         epuck.update_odometry()
 
+        rho = epuck.trajectory_following(index)
+
+        if rho < 0.1:
+            index += 1
+            if index >= len(epuck.waypoints):
+                print("Trajectory completed!")
+                epuck.is_finished = True
+
         _, world_point = epuck.lidar2world_coordinate()
         epuck.probabilistic_mapping(world_point)
-
-        rho, alpha = epuck.computing_error(index)
-
-        print(f"rho={rho:.4f}, alpha={np.degrees(alpha):.4f}")
 
         px, py = epuck.world2map(world_point[0], world_point[1])
 
         for x, y in zip(px.tolist(), py.tolist()):
             raw_prob = epuck.map[x, y]
-            prob = 1.0 if raw_prob > 0.7 else 0.0
+            prob = 1.0 if raw_prob > 0.1 else 0.0
 
             v = int(prob * 255)
             color = int(v * 256**2 + v * 256 + v)
