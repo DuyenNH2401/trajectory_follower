@@ -19,9 +19,7 @@ class EPuckController:
         # Odometry state
         self.xw = config.INITIAL_X
         self.yw = config.INITIAL_Y
-        self.omegaz = config.INITIAL_OMEGA
-        self.actual_phil = 0.0
-        self.actual_phir = 0.0
+        self.theta = config.INITIAL_THETA
 
         # Mapping
         self.map = np.zeros((config.MAP_RESOLUTION, config.MAP_RESOLUTION))
@@ -65,6 +63,27 @@ class EPuckController:
         # Marker
         self.marker = self.robot.getFromDef("marker").getField("translation")
 
+    def step_simulation(self) -> bool:
+        """
+        Returns:
+            bool: True if the simulation should continue, False if it should stop
+        """
+        if self.robot.step(self.timestep) == -1:
+            return False
+
+        self.step_count += 1
+        return not self.is_finished
+
+    def set_motor_speeds(self, left_speed: float, right_speed: float):
+        """This function should set the speeds of the left and right motors of the robot. It should take into account the maximum speed limits and ensure that the speeds are within the allowed range.
+
+        Args:
+            left_speed (float): Desired speed for the left motor
+            right_speed (float): Desired speed for the right motor
+        """
+        self.left_motor.setVelocity(left_speed)
+        self.right_motor.setVelocity(right_speed)
+
     def follow_line(self):
         """This function should implement the main control loop for line following. It should read the ground sensors, calculate the motor speeds using the line_following function, and set the motor speeds accordingly. It should also update the odometry state for use in mapping and error calculation."""
         # Read ground sensors
@@ -76,12 +95,7 @@ class EPuckController:
         phil, phir = self._line_following(L, C, R)
 
         # Set velocities
-        self.left_motor.setVelocity(phil)
-        self.right_motor.setVelocity(phir)
-
-        # Update velocities for odometry calculation in the next step
-        self.actual_phil = phil
-        self.actual_phir = phir
+        self.set_motor_speeds(phil, phir)
 
         if self.is_finished:
             self.left_motor.setVelocity(0.0)
@@ -146,17 +160,6 @@ class EPuckController:
 
         return phil, phir
 
-    def step_simulation(self) -> bool:
-        """
-        Returns:
-            bool: True if the simulation should continue, False if it should stop
-        """
-        if self.robot.step(self.timestep) == -1:
-            return False
-
-        self.step_count += 1
-        return not self.is_finished
-
     def update_odometry(self):
         """This function should update the robot's odometry state (xw, yw, omegaz) based on the actual wheel velocities (actual_phil, actual_phir) and the time step. This will be used for mapping and error calculation."""
 
@@ -171,15 +174,61 @@ class EPuckController:
         #     * delta_t
         # )
 
-        # self.xw += delta_x * np.cos(self.omegaz)
-        # self.yw += delta_x * np.sin(self.omegaz)
-        # self.omegaz += delta_omega
+        # self.xw += delta_x * np.cos(self.theta)
+        # self.yw += delta_x * np.sin(self.theta)
+        # self.theta += delta_omega
 
         self.xw = self.gps.getValues()[0]
         self.yw = self.gps.getValues()[1]
-        self.omegaz = np.arctan2(
+        self.theta = np.arctan2(
             self.compass.getValues()[0], self.compass.getValues()[1]
         )
+
+    def trajectory_following(self, index: int):
+        """This function should implement the main control loop for trajectory following. It should compute the error between the robot's current position and the target waypoint, and adjust the motor speeds accordingly to minimize this error. It should also update the odometry state for use in mapping and error calculation."""
+
+        self._place_marker(index)
+        rho, alpha = self._computing_error(index)
+
+        if rho < 0.1:
+            index += 1
+            if index >= len(self.waypoints):
+                print("Trajectory completed!")
+                self.is_finished = True
+
+        phil = -alpha * config.P1 + rho * config.P2
+        phir = alpha * config.P1 + rho * config.P2
+
+        return rho
+
+    def _computing_error(self, index: int) -> (float, float):
+        """This function should compute the error between the robot's current position (xw, yw) and the target waypoint specified by the index. The error can be calculated as the Euclidean distance between the robot's position and the waypoint. This error will be used to determine how well the robot is following the desired trajectory.
+
+        Args:
+            index (int): The index of the target waypoint
+
+        Returns:
+            tuple[float, float]: The error in terms of distance and angle
+        """
+        self._place_marker(index)
+
+        rho = np.sqrt(
+            (self.xw - self.waypoints[index][0]) ** 2
+            + (self.yw - self.waypoints[index][1]) ** 2
+        )
+
+        alpha = (
+            np.arctan2(
+                self.waypoints[index][1] - self.yw,
+                self.waypoints[index][0] - self.xw,
+            )
+            - self.theta
+        )
+
+        return rho, alpha
+
+    def _place_marker(self, index):
+        self.marker.setSFVec3f([*self.waypoints[index], 0.0])
 
     def lidar2world_coordinate(self) -> (np.ndarray, np.ndarray):
         """This function should convert the LIDAR readings from the robot's local coordinate frame to the world coordinate frame using the current odometry state (xw, yw, omegaz). It should return the LIDAR points in both the robot's local frame and the world frame for use in mapping and error calculation.
@@ -198,8 +247,8 @@ class EPuckController:
 
         w_T_r = np.array(
             [
-                [np.cos(self.omegaz), -np.sin(self.omegaz), self.xw],
-                [np.sin(self.omegaz), np.cos(self.omegaz), self.yw],
+                [np.cos(self.theta), -np.sin(self.theta), self.xw],
+                [np.sin(self.theta), np.cos(self.theta), self.yw],
                 [0, 0, 1],
             ]
         )
@@ -250,9 +299,3 @@ class EPuckController:
         map_point = self.world2map(world_point[0], world_point[1])
         np.add.at(self.map, (map_point[0], map_point[1]), 0.01)
         self.map = np.clip(self.map, 0.0, 1.0)
-
-    def _place_marker(self, index):
-        self.marker.setSFVec3f([*self.waypoints[index], 0.0])
-
-    def _computing_error(self, index):
-        pass

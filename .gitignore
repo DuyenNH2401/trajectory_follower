@@ -221,3 +221,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 >>>>>>> 6f69a28da1a27250fbb1c14eb078e10208159190
+
+run.sh

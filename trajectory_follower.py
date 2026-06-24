@@ -1,16 +1,23 @@
 # from scipy import signal
+import numpy as np
+
 from epuck import EPuckController
 
 
 def main() -> None:
     epuck = EPuckController()
+    index = 0
 
     while epuck.step_simulation():
-        epuck.follow_line()
+        # epuck.follow_line()
         epuck.update_odometry()
-        
-        robot_point, world_point = epuck.lidar2world_coordinate()
+
+        _, world_point = epuck.lidar2world_coordinate()
         epuck.probabilistic_mapping(world_point)
+
+        rho, alpha = epuck.computing_error(index)
+
+        print(f"rho={rho:.4f}, alpha={np.degrees(alpha):.4f}")
 
         px, py = epuck.world2map(world_point[0], world_point[1])
 
@@ -37,3 +44,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+    import os
+
+    os.system("cls" if os.name == "nt" else "clear")
